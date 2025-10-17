@@ -1,0 +1,116 @@
+struct CustomBias {
+  addCustomBias: bool;
+  bias_angle: real;
+}
+
+qfunc CSWAP(ctrl: qbit, a: qbit, b: qbit) {
+  control (ctrl) {
+    SWAP(a, b);
+  }
+}
+
+qfunc apply_peg_interaction(
+  control_qubit: qbit,
+  left_channel: qbit,
+  peg_pos: qbit,
+  right_channel: qbit
+) {
+  CSWAP(control_qubit, left_channel, peg_pos);
+  CX(peg_pos, control_qubit);
+  CSWAP(control_qubit, peg_pos, right_channel);
+}
+
+qfunc process_layer_with_reset(
+  layer: int,
+  n_layers: int,
+  control_qubit: qbit,
+  working_qubits: qbit[],
+  bias: CustomBias
+) {
+  // Apply reset
+  RESET(control_qubit);
+
+  // Apply custom bias
+  if (bias.addCustomBias == True) {
+    RX(bias.bias_angle, control_qubit);
+  }
+  else {
+    H(control_qubit);
+  }
+  
+  repeat (i: layer + 1) {
+    apply_peg_interaction(
+      control_qubit,
+      working_qubits[((n_layers - layer) + 2 * i) - 1],
+      working_qubits[(n_layers - layer) + 2 * i],
+      working_qubits[((n_layers - layer) + 2 * i) + 1]
+    );
+    
+    if (i < layer) {
+      CX(working_qubits[((n_layers - layer) + 2 * i) + 1], control_qubit);
+    }
+  }
+}
+
+qfunc process_layer_without_reset(
+  layer: int,
+  n_layers: int,
+  control_qubit: qbit,
+  working_qubits: qbit[],
+  bias: CustomBias
+) {
+  // Apply custom bias
+  if (bias.addCustomBias == True) {
+    RX(bias.bias_angle, control_qubit);
+  }
+  else {
+    H(control_qubit);
+  }
+  
+  repeat (i: layer + 1) {
+    apply_peg_interaction(
+      control_qubit,
+      working_qubits[((n_layers - layer) + 2 * i) - 1],
+      working_qubits[(n_layers - layer) + 2 * i],
+      working_qubits[((n_layers - layer) + 2 * i) + 1]
+    );
+    
+    if (i < layer) {
+      CX(working_qubits[((n_layers - layer) + 2 * i) + 1], control_qubit);
+    }
+  }
+}
+
+
+
+
+qfunc quantum_galton_board(
+  n_layers: int,
+  control_qubit: qbit,
+  working_qubits: qbit[],
+  classical: bool,
+  bias: CustomBias
+) {
+  X(working_qubits[n_layers]);
+  
+  repeat (layer: n_layers) {
+    if(classical == True) {
+      process_layer_with_reset(layer, n_layers, control_qubit, working_qubits, bias);
+    }
+    else {
+        process_layer_without_reset(layer, n_layers, control_qubit, working_qubits, bias);
+    }
+  }
+}
+
+
+
+qfunc main() {
+  control_qubit: qbit;
+  working_qubits: qbit[9];  // 2 * 4 + 1 = 9
+  
+  allocate(1, control_qubit);
+  allocate(9, working_qubits);
+  
+  quantum_galton_board(4, control_qubit, working_qubits, False, CustomBias{ addCustomBias = True, bias_angle = (pi / 3)});
+}
