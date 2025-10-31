@@ -104,9 +104,12 @@ qfunc quantum_galton_board(
   }
 }
 
+// For n layer Galton quantum_galton_board there will be
+// n + 1 bin qubits and n anciliary qubits
+
 qfunc main(output bins: qbit[5]) {
   control_qubit: qbit;
-  ancilla_qubits: qbit[4];  // n = 4 layers
+  ancilla_qubits: qbit[4]; 
   
   allocate(1, control_qubit);
   allocate(4, ancilla_qubits);
