@@ -1,0 +1,125 @@
+struct CustomBias {
+  addCustomBias: bool;
+  bias_angle: real;
+}
+
+qfunc CSWAP(ctrl: qbit, a: qbit, b: qbit) {
+  control (ctrl) {
+    SWAP(a, b);
+  }
+}
+
+qfunc apply_peg_interaction(
+  control_qubit: qbit,
+  left_channel: qbit,
+  peg: qbit,
+  right_channel: qbit
+) {
+  CSWAP(control_qubit, left_channel, peg);
+  CX(peg, control_qubit);
+  CSWAP(control_qubit, peg, right_channel);
+}
+
+qfunc process_layer(
+  layer: int,
+  n_layers: int,
+  control_qubit: qbit,
+  bin_qubits: qbit[],
+  ancilla_qubits: qbit[],
+  classical: bool,
+  bias: CustomBias
+) {
+  // top‑scope classical vars (required by Qmod)
+  i_var: int;
+  a_left: int;
+  a_right: int;
+  a_idx: int;
+
+  if (classical == True) {
+    RESET(control_qubit);
+  }
+
+  if (bias.addCustomBias == True) {
+    RX(bias.bias_angle, control_qubit);
+  }
+  else {
+    H(control_qubit);
+  }
+
+  repeat (i: layer + 1) {
+    i_var = i;  // capture loop index in a top‑scope int
+
+    if ((layer % 2) == 0) {
+      // even layer: peg is bin, channels are ancilla
+      a_left  = i_var;
+      a_right = i_var + 1;
+
+      apply_peg_interaction(
+        control_qubit,
+        ancilla_qubits[a_left],
+        bin_qubits[i_var],
+        ancilla_qubits[a_right]
+      );
+
+      if (i_var < layer) {
+        CX(bin_qubits[i_var], control_qubit);
+      }
+    }
+    else {
+      // odd layer: peg is ancilla, channels are bins
+      a_idx = i_var + 1;
+
+      apply_peg_interaction(
+        control_qubit,
+        bin_qubits[i_var],
+        ancilla_qubits[a_idx],
+        bin_qubits[i_var + 1]
+      );
+
+      if (i_var < layer) {
+        CX(ancilla_qubits[a_idx], control_qubit);
+      }
+    }
+  }
+}
+
+qfunc quantum_galton_board(
+  n_layers: int,
+  control_qubit: qbit,
+  bin_qubits: qbit[],
+  ancilla_qubits: qbit[],
+  classical: bool,
+  bias: CustomBias
+) {
+  X(bin_qubits[0]);
+
+  repeat (layer: n_layers) {
+    process_layer(
+      layer,
+      n_layers,
+      control_qubit,
+      bin_qubits,
+      ancilla_qubits,
+      classical,
+      bias
+    );
+  }
+}
+
+qfunc main(output bins: qbit[5]) {
+  control_qubit: qbit;
+  ancilla_qubits: qbit[4];
+
+  allocate(1, control_qubit);
+  allocate(4, ancilla_qubits);
+  allocate(5, bins);
+
+  quantum_galton_board(
+    4,
+    control_qubit,
+    bins,
+    ancilla_qubits,
+    True,
+    CustomBias{ addCustomBias = False, bias_angle = (pi / 3) }
+  );
+}
