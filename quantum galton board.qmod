@@ -12,20 +12,19 @@ qfunc CSWAP(ctrl: qbit, a: qbit, b: qbit) {
 qfunc apply_peg_interaction(
   control_qubit: qbit,
   left_channel: qbit,
-  peg: qbit,
+  peg_pos: qbit,
   right_channel: qbit
 ) {
-  CSWAP(control_qubit, left_channel, peg);
-  CX(peg, control_qubit);
-  CSWAP(control_qubit, peg, right_channel);
+  CSWAP(control_qubit, left_channel, peg_pos);
+  CX(peg_pos, control_qubit);
+  CSWAP(control_qubit, peg_pos, right_channel);
 }
 
 qfunc process_layer_with_reset(
   layer: int,
   n_layers: int,
   control_qubit: qbit,
-  bin_qubits: qbit[],
-  ancilla_qubits: qbit[],
+  working_qubits: qbit[],
   bias: CustomBias
 ) {
   // Apply reset
@@ -42,13 +41,13 @@ qfunc process_layer_with_reset(
   repeat (i: layer + 1) {
     apply_peg_interaction(
       control_qubit,
-      bin_qubits[i],
-      ancilla_qubits[(n_layers - layer - 1) + i],
-      bin_qubits[i + 1]
+      working_qubits[((n_layers - layer) + 2 * i) - 1],
+      working_qubits[(n_layers - layer) + 2 * i],
+      working_qubits[((n_layers - layer) + 2 * i) + 1]
     );
     
     if (i < layer) {
-      CX(bin_qubits[i + 1], control_qubit);
+      CX(working_qubits[((n_layers - layer) + 2 * i) + 1], control_qubit);
     }
   }
 }
@@ -57,8 +56,7 @@ qfunc process_layer_without_reset(
   layer: int,
   n_layers: int,
   control_qubit: qbit,
-  bin_qubits: qbit[],
-  ancilla_qubits: qbit[],
+  working_qubits: qbit[],
   bias: CustomBias
 ) {
   // Apply custom bias
@@ -72,13 +70,13 @@ qfunc process_layer_without_reset(
   repeat (i: layer + 1) {
     apply_peg_interaction(
       control_qubit,
-      bin_qubits[i],
-      ancilla_qubits[(n_layers - layer - 1) + i],
-      bin_qubits[i + 1]
+      working_qubits[((n_layers - layer) + 2 * i) - 1],
+      working_qubits[(n_layers - layer) + 2 * i],
+      working_qubits[((n_layers - layer) + 2 * i) + 1]
     );
     
     if (i < layer) {
-      CX(bin_qubits[i + 1], control_qubit);
+      CX(working_qubits[((n_layers - layer) + 2 * i) + 1], control_qubit);
     }
   }
 }
@@ -86,35 +84,30 @@ qfunc process_layer_without_reset(
 qfunc quantum_galton_board(
   n_layers: int,
   control_qubit: qbit,
-  bin_qubits: qbit[],
-  ancilla_qubits: qbit[],
+  working_qubits: qbit[],
   classical: bool,
   bias: CustomBias
 ) {
-  // Initialize the ball at the top (center position)
-  X(bin_qubits[0]);
+  X(working_qubits[n_layers]);
   
   repeat (layer: n_layers) {
     if(classical == True) {
-      process_layer_with_reset(layer, n_layers, control_qubit, bin_qubits, ancilla_qubits, bias);
+      process_layer_with_reset(layer, n_layers, control_qubit, working_qubits, bias);
     }
     else {
-      process_layer_without_reset(layer, n_layers, control_qubit, bin_qubits, ancilla_qubits, bias);
+        process_layer_without_reset(layer, n_layers, control_qubit, working_qubits, bias);
     }
   }
 }
 
-// For n layer Galton quantum_galton_board there will be
-// n + 1 bin qubits and n anciliary qubits
 
-qfunc main(output bins: qbit[5]) {
+
+qfunc main(output working_qubits: qbit[9]) {
   control_qubit: qbit;
-  ancilla_qubits: qbit[4]; 
+  // 2 * 4 + 1 = 9
   
   allocate(1, control_qubit);
-  allocate(4, ancilla_qubits);
-  allocate(5, bins);
+  allocate(9, working_qubits);
   
-  // bins is already our output array with n+1 = 5 qubits
-  quantum_galton_board(4, control_qubit, bins, ancilla_qubits, True, CustomBias{ addCustomBias = False, bias_angle = (pi / 3)});
+  quantum_galton_board(4, control_qubit, working_qubits, False, CustomBias{ addCustomBias = False, bias_angle=(pi/3)});
 }
